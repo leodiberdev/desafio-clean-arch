@@ -8,12 +8,12 @@ import (
 
 	graphql_handler "github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/go-chi/chi/v5"
 	"github.com/leodiberdev/desafio-clean-arch/configs"
 	"github.com/leodiberdev/desafio-clean-arch/internal/event/handler"
 	"github.com/leodiberdev/desafio-clean-arch/internal/infra/graph"
 	"github.com/leodiberdev/desafio-clean-arch/internal/infra/grpc/pb"
 	"github.com/leodiberdev/desafio-clean-arch/internal/infra/grpc/service"
-	"github.com/leodiberdev/desafio-clean-arch/internal/infra/web/webserver"
 	"github.com/leodiberdev/desafio-clean-arch/pkg/events"
 	"github.com/streadway/amqp"
 	"google.golang.org/grpc"
@@ -44,11 +44,19 @@ func main() {
 
 	createOrderUseCase := NewCreateOrderUseCase(db, eventDispatcher)
 
-	webserver := webserver.NewWebServer(configs.WebServerPort)
+	// webserver := webserver.NewWebServer(configs.WebServerPort)
+	// webOrderHandler := NewWebOrderHandler(db, eventDispatcher)
+	// webserver.AddHandler("/order", webOrderHandler.Create)
+	// fmt.Println("Starting web server on port", configs.WebServerPort)
+	// go webserver.Start()
 	webOrderHandler := NewWebOrderHandler(db, eventDispatcher)
-	webserver.AddHandler("/order", webOrderHandler.Create)
+	router := chi.NewRouter()
+	router.Route("/order", func(r chi.Router) {
+		r.Post("/", webOrderHandler.Create)
+		r.Get("/", webOrderHandler.ListOrders)
+	})
 	fmt.Println("Starting web server on port", configs.WebServerPort)
-	go webserver.Start()
+	go http.ListenAndServe(":"+configs.WebServerPort, router)
 
 	grpcServer := grpc.NewServer()
 	createOrderService := service.NewOrderService(*createOrderUseCase)
